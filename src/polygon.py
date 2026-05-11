@@ -1,27 +1,31 @@
+from typing import Tuple
 import pymunk as pm
 from pymunk import Vec2d
 import pygame
 import math
 
 
-class Polygon():
-    def __init__(self, pos, length, height, space, mass=5.0):
-        moment = 1000
-        body = pm.Body(mass, moment)
+def _load_sprite(image_path: str, rect_coords: Tuple[int, int, int, int]) -> pygame.Surface:
+    """Helper function to load and crop sprite images"""
+    image = pygame.image.load(image_path).convert_alpha()
+    rect = pygame.Rect(*rect_coords)
+    return image.subsurface(rect).copy()
+
+
+class Polygon:
+    def __init__(self, pos: Tuple[float, float], length: float, height: float, space: pm.Space, mass: float = 5.0) -> None:
+        moment: float = 1000
+        body: pm.Body = pm.Body(mass, moment)
         body.position = Vec2d(*pos)
-        shape = pm.Poly.create_box(body, (length, height))
+        shape: pm.Poly = pm.Poly.create_box(body, (length, height))
         shape.color = (0, 0, 255)
         shape.friction = 0.5
         shape.collision_type = 2
         space.add(body, shape)
-        self.body = body
-        self.shape = shape
-        wood = pygame.image.load("../resources/images/wood.png").convert_alpha()
-        wood2 = pygame.image.load("../resources/images/wood2.png").convert_alpha()
-        rect = pygame.Rect(251, 357, 86, 22)
-        self.beam_image = wood.subsurface(rect).copy()
-        rect = pygame.Rect(16, 252, 22, 84)
-        self.column_image = wood2.subsurface(rect).copy()
+        self.body: pm.Body = body
+        self.shape: pm.Poly = shape
+        self.beam_image: pygame.Surface = _load_sprite("../resources/images/wood.png", (251, 357, 86, 22))
+        self.column_image: pygame.Surface = _load_sprite("../resources/images/wood2.png", (16, 252, 22, 84))
 
     def to_pygame(self, p):
         """Convert pymunk to pygame coordinates"""

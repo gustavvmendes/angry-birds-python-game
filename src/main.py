@@ -1,5 +1,4 @@
 import os
-import sys
 import math
 import time
 import pygame
@@ -80,7 +79,6 @@ rect = pygame.Rect(24, 4, 100, 100)
 replay_button = buttons.subsurface(rect).copy()
 rect = pygame.Rect(142, 365, 130, 100)
 next_button = buttons.subsurface(rect).copy()
-clock = pygame.time.Clock()
 rect = pygame.Rect(18, 212, 100, 100)
 play_button = buttons.subsurface(rect).copy()
 clock = pygame.time.Clock()

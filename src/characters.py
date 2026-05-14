@@ -2,6 +2,12 @@ from typing import Tuple
 import pymunk as pm
 from pymunk import Vec2d, Body, Circle, Space
 
+BIRD_POWER_MULTIPLIER = 53
+BIRD_COLLISION_TYPE = 0
+PIG_COLLISION_TYPE = 1
+SHAPE_ELASTICITY = 0.95
+SHAPE_FRICTION = 1.0
+
 
 class Bird:
     def __init__(self, distance: float, angle: float, x: float, y: float, space: Space) -> None:
@@ -11,14 +17,14 @@ class Bird:
         inertia: float = pm.moment_for_circle(mass, 0, radius, (0, 0))
         body: Body = pm.Body(mass, inertia)
         body.position = x, y
-        power: float = distance * 53
+        power: float = distance * BIRD_POWER_MULTIPLIER
         impulse: Vec2d = power * Vec2d(1, 0)
         angle = -angle
         body.apply_impulse_at_local_point(impulse.rotated(angle))
         shape: Circle = pm.Circle(body, radius, (0, 0))
-        shape.elasticity = 0.95
-        shape.friction = 1
-        shape.collision_type = 0
+        shape.elasticity = SHAPE_ELASTICITY
+        shape.friction = SHAPE_FRICTION
+        shape.collision_type = BIRD_COLLISION_TYPE
         space.add(body, shape)
         self.body: Body = body
         self.shape: Circle = shape
@@ -33,9 +39,9 @@ class Pig:
         body: Body = pm.Body(mass, inertia)
         body.position = x, y
         shape: Circle = pm.Circle(body, radius, (0, 0))
-        shape.elasticity = 0.95
-        shape.friction = 1
-        shape.collision_type = 1
+        shape.elasticity = SHAPE_ELASTICITY
+        shape.friction = SHAPE_FRICTION
+        shape.collision_type = PIG_COLLISION_TYPE
         space.add(body, shape)
         self.body: Body = body
         self.shape: Circle = shape

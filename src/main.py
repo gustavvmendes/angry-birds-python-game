@@ -2,7 +2,9 @@ import os
 import math
 import time
 import pygame
-current_path = os.getcwd()
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'images')
+SOUNDS_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'sounds')
 import pymunk as pm
 from characters import Bird
 from level import Level
@@ -51,22 +53,22 @@ WHITE = (255, 255, 255)
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 redbird = pygame.image.load(
-    "../resources/images/red-bird3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "red-bird3.png")).convert_alpha()
 background2 = pygame.image.load(
-    "../resources/images/background3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "background3.png")).convert_alpha()
 sling_image = pygame.image.load(
-    "../resources/images/sling-3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "sling-3.png")).convert_alpha()
 full_sprite = pygame.image.load(
-    "../resources/images/full-sprite.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "full-sprite.png")).convert_alpha()
 rect = pygame.Rect(181, 1050, 50, 50)
 cropped = full_sprite.subsurface(rect).copy()
 pig_image = pygame.transform.scale(cropped, (30, 30))
 buttons = pygame.image.load(
-    "../resources/images/selected-buttons.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "selected-buttons.png")).convert_alpha()
 pig_happy = pygame.image.load(
-    "../resources/images/pig_failed.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "pig_failed.png")).convert_alpha()
 stars = pygame.image.load(
-    "../resources/images/stars-edited.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "stars-edited.png")).convert_alpha()
 rect = pygame.Rect(0, 0, 200, 200)
 star1 = stars.subsurface(rect).copy()
 rect = pygame.Rect(204, 0, 200, 200)
@@ -168,7 +170,7 @@ def distance(xo, yo, x, y):
 
 def load_music():
     """Load the music"""
-    song1 = '../resources/sounds/angry-birds.ogg'
+    song1 = os.path.join(SOUNDS_DIR, 'angry-birds.ogg')
     pygame.mixer.music.load(song1)
     pygame.mixer.music.play(-1)
 
@@ -228,14 +230,11 @@ def draw_level_cleared():
         rect = pygame.Rect(300, 0, 600, 800)
         pygame.draw.rect(screen, BLACK, rect)
         screen.blit(level_cleared, (450, 90))
-        if score >= level.one_star and score <= level.two_star:
+        if score >= level.one_star:
             screen.blit(star1, (310, 190))
-        if score >= level.two_star and score <= level.three_star:
-            screen.blit(star1, (310, 190))
+        if score >= level.two_star:
             screen.blit(star2, (500, 170))
         if score >= level.three_star:
-            screen.blit(star1, (310, 190))
-            screen.blit(star2, (500, 170))
             screen.blit(star3, (700, 200))
         screen.blit(score_level_cleared, (550, 400))
         screen.blit(replay_button, (510, 480))
@@ -347,11 +346,11 @@ def post_solve_pig_wood(arbiter, space, _):
 
 
 # bird and pigs
-space.on_collision(BIRD_COLLISION_TYPE, PIG_COLLISION_TYPE, post_solve=post_solve_bird_pig)
+space.add_collision_handler(BIRD_COLLISION_TYPE, PIG_COLLISION_TYPE).post_solve = post_solve_bird_pig
 # bird and wood
-space.on_collision(BIRD_COLLISION_TYPE, WOOD_COLLISION_TYPE, post_solve=post_solve_bird_wood)
+space.add_collision_handler(BIRD_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_bird_wood
 # pig and wood
-space.on_collision(PIG_COLLISION_TYPE, WOOD_COLLISION_TYPE, post_solve=post_solve_pig_wood)
+space.add_collision_handler(PIG_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_pig_wood
 load_music()
 level = Level(pigs, columns, beams, space)
 level.number = 0

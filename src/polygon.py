@@ -39,14 +39,18 @@ class Polygon():
         if element == 'beams':
             p = poly.body.position
             p = Vec2d(*self.to_pygame(p))
-            angle_degrees = math.degrees(poly.body.angle) + 180
+            body_angle_radians = poly.body.angle
+            angle_in_degrees = math.degrees(body_angle_radians)
+            orientation_adjustment = 180
+            angle_degrees = angle_in_degrees + orientation_adjustment
             rotated_logo_img = pygame.transform.rotate(self.beam_image,
                                                        angle_degrees)
             offset = Vec2d(*rotated_logo_img.get_size()) / 2.
             p = p - offset
             np = p
             screen.blit(rotated_logo_img, (np.x, np.y))
-        if element == 'columns':
+        is_column_element = (element == 'columns')
+        if is_column_element:
             p = poly.body.position
             p = Vec2d(*self.to_pygame(p))
             angle_degrees = math.degrees(poly.body.angle) + 180

@@ -2,7 +2,7 @@ import pymunk as pm
 from pymunk import Vec2d
 import pygame
 import math
-
+ORIENTATION_ADJUSTMENT = 180
 
 class Polygon():
     def __init__(self, pos, length, height, space, mass=5.0):
@@ -53,7 +53,7 @@ class Polygon():
         if is_column_element:
             p = poly.body.position
             p = Vec2d(*self.to_pygame(p))
-            angle_degrees = math.degrees(poly.body.angle) + 180
+            angle_degrees = math.degrees(poly.body.angle) + ORIENTATION_ADJUSTMENT
             rotated_logo_img = pygame.transform.rotate(self.column_image,
                                                        angle_degrees)
             offset = Vec2d(*rotated_logo_img.get_size()) / 2.

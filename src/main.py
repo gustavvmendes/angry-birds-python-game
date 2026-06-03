@@ -82,6 +82,13 @@ bold_font = pygame.font.SysFont("arial", 30, bold=True)
 bold_font2 = pygame.font.SysFont("arial", 40, bold=True)
 bold_font3 = pygame.font.SysFont("arial", 50, bold=True)
 wall = False
+music_muted = False  # New variable to control audio state
+# Custom scale matching your request (values from 0.0 to 1.0)
+volume_steps = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]
+current_volume_index = 7  # Starts at index 7, which corresponds to 0.50 (50%)
+current_volume = volume_steps[current_volume_index]
+volume_display_timer = 0  # Timer to control how long the volume text stays visible
+small_font = pygame.font.SysFont("arial", 20, bold=True)  # Smaller font for volume
 
 # Static floor
 static_body = pm.Body(body_type=pm.Body.STATIC)
@@ -135,48 +142,46 @@ def load_music():
     """Load the music"""
     song1 = '../resources/sounds/angry-birds.ogg'
     pygame.mixer.music.load(song1)
+    pygame.mixer.music.set_volume(volume_steps[current_volume_index])  # Set initial volume from scale
     pygame.mixer.music.play(-1)
 
 
 def sling_action():
-    """Set up sling behavior"""
+    """Set up sling behavior and apply maximum force limit"""
     global mouse_distance
     global rope_lenght
     global angle
     global x_mouse
     global y_mouse
-    # Fixing bird to the sling rope
+    
+    # Calculate current distance from sling center
+    mouse_distance = distance(sling_x, sling_y, x_mouse, y_mouse)
+    
+    # Technical Requirement (SM 04): Implement maximum force limit constraint
+    if mouse_distance > rope_lenght:
+        mouse_distance = rope_lenght
+
     v = vector((sling_x, sling_y), (x_mouse, y_mouse))
     uv = unit_vector(v)
     uv1 = uv[0]
     uv2 = uv[1]
-    mouse_distance = distance(sling_x, sling_y, x_mouse, y_mouse)
-    pu = (uv1*rope_lenght+sling_x, uv2*rope_lenght+sling_y)
-    bigger_rope = 102
-    x_redbird = x_mouse - 20
-    y_redbird = y_mouse - 20
-    if mouse_distance > rope_lenght:
-        pux, puy = pu
-        pux -= 20
-        puy -= 20
-        pul = pux, puy
-        screen.blit(redbird, pul)
-        pu2 = (uv1*bigger_rope+sling_x, uv2*bigger_rope+sling_y)
-        pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu2, 5)
-        screen.blit(redbird, pul)
-        pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu2, 5)
-    else:
-        mouse_distance += 10
-        pu3 = (uv1*mouse_distance+sling_x, uv2*mouse_distance+sling_y)
-        pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu3, 5)
-        screen.blit(redbird, (x_redbird, y_redbird))
-        pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu3, 5)
+    
+    pu = (uv1 * mouse_distance + sling_x, uv2 * mouse_distance + sling_y)
+    bigger_rope = mouse_distance + 12
+    x_redbird = pu[0] - 20
+    y_redbird = pu[1] - 20
+    
+    # Draw the sling ropes and bird based on the constrained distance
+    pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu, 5)
+    screen.blit(redbird, (x_redbird, y_redbird))
+    pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu, 5)
+    
     # Angle of impulse
     dy = y_mouse - sling_y
     dx = x_mouse - sling_x
     if dx == 0:
         dx = 0.00000000000001
-    angle = math.atan((float(dy))/dx)
+    angle = math.atan((float(dy)) / dx)
 
 
 def draw_level_cleared():
@@ -184,28 +189,34 @@ def draw_level_cleared():
     global game_state
     global bonus_score_once
     global score
+    
+    # Guard clause to check if the level is actually cleared
+    if level.number_of_birds < 0 or len(pigs) != 0:
+        return
+
+    if bonus_score_once:
+        score += (level.number_of_birds - 1) * 10000
+        bonus_score_once = False
+        
+    game_state = 4
+    rect = pygame.Rect(300, 0, 600, 800)
+    pygame.draw.rect(screen, BLACK, rect)
+    
     level_cleared = bold_font3.render("Level Cleared!", 1, WHITE)
     score_level_cleared = bold_font2.render(str(score), 1, WHITE)
-    if level.number_of_birds >= 0 and len(pigs) == 0:
-        if bonus_score_once:
-            score += (level.number_of_birds-1) * 10000
-        bonus_score_once = False
-        game_state = 4
-        rect = pygame.Rect(300, 0, 600, 800)
-        pygame.draw.rect(screen, BLACK, rect)
-        screen.blit(level_cleared, (450, 90))
-        if score >= level.one_star and score <= level.two_star:
-            screen.blit(star1, (310, 190))
-        if score >= level.two_star and score <= level.three_star:
-            screen.blit(star1, (310, 190))
-            screen.blit(star2, (500, 170))
-        if score >= level.three_star:
-            screen.blit(star1, (310, 190))
-            screen.blit(star2, (500, 170))
-            screen.blit(star3, (700, 200))
-        screen.blit(score_level_cleared, (550, 400))
-        screen.blit(replay_button, (510, 480))
-        screen.blit(next_button, (620, 480))
+    screen.blit(level_cleared, (450, 90))
+    
+    # Optimized star drawing logic (Reduced Cyclomatic Complexity)
+    if score >= level.one_star:
+        screen.blit(star1, (310, 190))
+    if score >= level.two_star:
+        screen.blit(star2, (500, 170))
+    if score >= level.three_star:
+        screen.blit(star3, (700, 200))
+        
+    screen.blit(score_level_cleared, (550, 400))
+    screen.blit(replay_button, (510, 480))
+    screen.blit(next_button, (620, 480))
 
 
 def draw_level_failed():
@@ -345,16 +356,34 @@ while running:
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
             space.gravity = (0.0, -700.0)
             level.bool_space = False
-        clicked_on_slingshot = (
-            pygame.mouse.get_pressed()[0] and 
-            (100 < x_mouse < 250) and 
-            (370 < y_mouse < 550)
-        )
+            
+        # Technical Requirement (SM 14): Implement Mute functionality (Key 'M')
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+            music_muted = not music_muted
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if music_muted:
+                pygame.mixer.music.pause()
+            else:
+                pygame.mixer.music.unpause()
 
-        if clicked_on_slingshot:
-            mouse_pressed = True
-        if (event.type == pygame.MOUSEBUTTONUP and
-                event.button == 1 and mouse_pressed):
+        # Volume Up control (Advances to the next step in the custom volume list)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if current_volume_index < len(volume_steps) - 1:
+                current_volume_index += 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+
+        # Volume Down control (Goes back to the previous step in the custom volume list)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN:
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if current_volume_index > 0:
+                current_volume_index -= 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+
+        # Handle mouse release for the slingshot
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and mouse_pressed:
             # Release new bird
             mouse_pressed = False
             if level.number_of_birds > 0:
@@ -372,6 +401,7 @@ while running:
                     birds.append(bird)
                 if level.number_of_birds == 0:
                     t2 = time.time()
+
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             if (x_mouse < 60 and y_mouse < 155 and y_mouse > 90):
                 game_state = 1
@@ -410,7 +440,18 @@ while running:
                     game_state = 0
                     bird_path = []
                     score = 0
+
+    # Continuous input tracking (Runs every frame, outside the event loop)
     x_mouse, y_mouse = pygame.mouse.get_pos()
+    
+    clicked_on_slingshot = (
+        pygame.mouse.get_pressed()[0] and 
+        (100 < x_mouse < 250) and 
+        (370 < y_mouse < 550)
+    )
+    if clicked_on_slingshot:
+        mouse_pressed = True
+
     # Draw background
     screen.fill((130, 200, 100))
     screen.blit(background2, (0, -50))
@@ -473,7 +514,6 @@ while running:
     # Draw pigs
     for pig in pigs:
         i += 1
-        # print (i,pig.life)
         pig = pig.shape
         if pig.body.position.y < 0:
             pigs_to_remove.append(pig)
@@ -509,6 +549,15 @@ while running:
     else:
         screen.blit(number_font, (1060, 130))
     screen.blit(pause_button, (10, 90))
+    
+    # Render and display the current volume level only when altered (lasts 2 seconds)
+    current_time = pygame.time.get_ticks()
+    if current_time - volume_display_timer < 2000:  # 2000ms = 2 seconds
+        volume_percentage = 0 if music_muted else int(current_volume * 100)
+        volume_text = f"Volume: {volume_percentage}%"
+        volume_font = small_font.render(volume_text, 1, WHITE)
+        screen.blit(volume_font, (1070, 610))  # Displaced slightly for better fit
+
     # Pause option
     if game_state == 1:
         screen.blit(play_button, (500, 200))

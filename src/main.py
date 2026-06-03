@@ -14,6 +14,8 @@ except ImportError:
 from characters import Bird
 from level import Level
 
+from screen_manager import ScreenManager
+
 # ========== GAME CONSTANTS ==========
 # Window dimensions
 SCREEN_WIDTH = 1200
@@ -289,7 +291,7 @@ def draw_level_cleared():
         score += (level.number_of_birds - 1) * 10000
         bonus_score_once = False
 
-    game_state = 4
+    screen_manager.change(4)
     # Semi-transparent overlay
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     overlay.set_alpha(165)
@@ -342,7 +344,7 @@ def draw_level_failed():
     """Draw level failed"""
     global game_state
     if level.number_of_birds <= 0 and time.time() - t2 > 5 and len(pigs) > 0:
-        game_state = 3
+        screen_manager.change(3)
         # Semi-transparent overlay
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         overlay.set_alpha(165)
@@ -554,8 +556,8 @@ while running:
 
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             if (x_mouse < 60 and y_mouse < 155 and y_mouse > 90):
-                game_state = 1
-            if game_state == 1:
+                screen_manager.change(1)
+            if screen_manager.current() == 1:
                 if x_mouse > 500 and y_mouse > 200 and y_mouse < 300:
                     # Resume in the paused screen
                     game_state = 0
@@ -565,7 +567,7 @@ while running:
                     level.load_level()
                     game_state = 0
                     bird_path = []
-            if game_state == 3:
+            if screen_manager.current() == 3:
                 # Restart in the failed level screen
                 if x_mouse > 540 and x_mouse < 660 and y_mouse > 445:
                     restart()
@@ -573,7 +575,7 @@ while running:
                     game_state = 0
                     bird_path = []
                     score = 0
-            if game_state == 4:
+            if screen_manager.current() == 4:
                 # Build next level
                 if x_mouse > 615 and y_mouse > 465:
                     restart()

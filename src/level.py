@@ -311,6 +311,43 @@ class Level():
         self.beams.append(Polygon(p, 85, 20, self.space))
         self.finalize_level_setup()
 
+    def build_12(self):
+        """level 12 - Castle Fortress"""
+        pig1 = Pig(830, 100, self.space)
+        pig1.life = 25
+        self.pigs.append(pig1)
+        
+        pig2 = Pig(830, 225, self.space)
+        pig2.life = 25
+        self.pigs.append(pig2)
+        
+        pig3 = Pig(1030, 100, self.space)
+        pig3.life = 25
+        self.pigs.append(pig3)
+        
+        pig4 = Pig(1030, 225, self.space)
+        pig4.life = 25
+        self.pigs.append(pig4)
+        
+        boss_pig = Pig(930, 324, self.space)
+        boss_pig.life = 60
+        self.pigs.append(boss_pig)
+        
+        self.closed_flat(800, 0, 2)
+        self.closed_flat(1000, 0, 2)
+        
+        self.horizontal_pile(900, 0, 3)
+        self.vertical_pile(900, 67.5, 2)
+        self.vertical_pile(950, 67.5, 2)
+        
+        p_bridge = (930, 300)
+        self.beams.append(Polygon(p_bridge, 85, 20, self.space))
+        
+        self.vertical_pile(710, 7.5, 2)
+        self.vertical_pile(1130, 7.5, 2)
+        
+        self.finalize_level_setup()
+
     def load_level(self):
         try:
             build_name = "build_"+str(self.number)

@@ -6,8 +6,15 @@ _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'images')
 SOUNDS_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'sounds')
 import pymunk as pm
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
 from characters import Bird
 from level import Level
+
+from screen_manager import ScreenManager
 
 # ========== GAME CONSTANTS ==========
 # Window dimensions
@@ -49,7 +56,13 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+PANEL_BG = (35, 18, 8)
+PANEL_BORDER = (210, 165, 30)
+BUTTON_NORMAL = (170, 60, 20)
+BUTTON_HOVER = (210, 90, 35)
+BUTTON_BORDER_COLOR = (210, 165, 30)
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 redbird = pygame.image.load(
@@ -117,7 +130,15 @@ bonus_score_once = True
 bold_font = pygame.font.SysFont("arial", 30, bold=True)
 bold_font2 = pygame.font.SysFont("arial", 40, bold=True)
 bold_font3 = pygame.font.SysFont("arial", 50, bold=True)
+label_font = pygame.font.SysFont("arial", 22, bold=True)
 wall = False
+music_muted = False  # New variable to control audio state
+# Custom scale matching your request (values from 0.0 to 1.0)
+volume_steps = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]
+current_volume_index = 7  # Starts at index 7, which corresponds to 0.50 (50%)
+current_volume = volume_steps[current_volume_index]
+volume_display_timer = 0  # Timer to control how long the volume text stays visible
+small_font = pygame.font.SysFont("arial", 20, bold=True)  # Smaller font for volume
 
 # Static floor
 static_body = pm.Body(body_type=pm.Body.STATIC)
@@ -167,51 +188,93 @@ def distance(xo, yo, x, y):
     return math.dist(origin_point, destination_point)
 
 
+collision_sound = None
+_last_collision_time = 0.0
+
+
+def _generate_collision_sound():
+    """Generate a funny descending pig squeal for bird-pig collision."""
+    import array as _arr
+    sample_rate, _, channels = pygame.mixer.get_init()
+    sample_rate = abs(sample_rate) or 44100
+    channels = channels or 2
+    duration = 0.45
+    n = int(sample_rate * duration)
+
+    if _HAS_NUMPY:
+        t = np.linspace(0, duration, n, dtype=np.float64)
+        freq = 850.0 * np.exp(-7.0 * t) + 160.0
+        freq += np.sin(2 * np.pi * 22 * t) * 55.0
+        dt = duration / n
+        phase = 2 * np.pi * np.cumsum(freq) * dt
+        wave = np.sin(phase) + 0.45 * np.sin(2 * phase + 0.4)
+        env = np.exp(-6.0 * t)
+        wave *= env
+        peak = np.max(np.abs(wave)) or 1.0
+        wave = (wave / peak * 29000).astype(np.int16)
+        if channels == 2:
+            wave = np.ascontiguousarray(np.column_stack([wave, wave]))
+        return pygame.sndarray.make_sound(wave)
+    else:
+        buf = _arr.array('h')
+        phase = 0.0
+        for i in range(n):
+            t_i = i / sample_rate
+            f = 850 * math.exp(-7 * t_i) + 160 + math.sin(2 * math.pi * 22 * t_i) * 55
+            phase += 2 * math.pi * f / sample_rate
+            v = math.sin(phase) + 0.45 * math.sin(2 * phase + 0.4)
+            env = math.exp(-6 * t_i)
+            sample = max(-32767, min(32767, int(v * env * 20000)))
+            buf.append(sample)
+            if channels == 2:
+                buf.append(sample)
+        return pygame.mixer.Sound(buffer=buf)
+
+
 def load_music():
     """Load the music"""
     song1 = os.path.join(SOUNDS_DIR, 'angry-birds.ogg')
     pygame.mixer.music.load(song1)
+    pygame.mixer.music.set_volume(volume_steps[current_volume_index])  # Set initial volume from scale
     pygame.mixer.music.play(-1)
 
 
 def sling_action():
-    """Set up sling behavior"""
+    """Set up sling behavior and apply maximum force limit"""
     global mouse_distance
     global rope_lenght
     global angle
     global x_mouse
     global y_mouse
-    # Fixing bird to the sling rope
+    
+    # Calculate current distance from sling center
+    mouse_distance = distance(sling_x, sling_y, x_mouse, y_mouse)
+    
+    # Technical Requirement (SM 04): Implement maximum force limit constraint
+    if mouse_distance > ROPE_LENGTH:
+        mouse_distance = ROPE_LENGTH
+
     v = vector((sling_x, sling_y), (x_mouse, y_mouse))
     uv = unit_vector(v)
     uv1 = uv[0]
     uv2 = uv[1]
-    mouse_distance = distance(sling_x, sling_y, x_mouse, y_mouse)
-    pu = (uv1*rope_lenght+sling_x, uv2*rope_lenght+sling_y)
-    x_redbird = x_mouse - BIRD_RENDER_OFFSET
-    y_redbird = y_mouse - BIRD_RENDER_OFFSET
-    if mouse_distance > rope_lenght:
-        pux, puy = pu
-        pux -= BIRD_RENDER_OFFSET
-        puy -= BIRD_RENDER_OFFSET
-        pul = pux, puy
-        screen.blit(redbird, pul)
-        pu2 = (uv1*BIGGER_ROPE+sling_x, uv2*BIGGER_ROPE+sling_y)
-        pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu2, 5)
-        screen.blit(redbird, pul)
-        pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu2, 5)
-    else:
-        mouse_distance += 10
-        pu3 = (uv1*mouse_distance+sling_x, uv2*mouse_distance+sling_y)
-        pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu3, 5)
-        screen.blit(redbird, (x_redbird, y_redbird))
-        pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu3, 5)
+    
+    pu = (uv1 * mouse_distance + sling_x, uv2 * mouse_distance + sling_y)
+    bigger_rope = mouse_distance + 12
+    x_redbird = pu[0] - BIRD_RENDER_OFFSET
+    y_redbird = pu[1] - BIRD_RENDER_OFFSET
+    
+    # Draw the sling ropes and bird based on the constrained distance
+    pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu, 5)
+    screen.blit(redbird, (x_redbird, y_redbird))
+    pygame.draw.line(screen, (0, 0, 0), (sling_x, sling_y), pu, 5)
+    
     # Angle of impulse
     dy = y_mouse - sling_y
     dx = x_mouse - sling_x
     if dx == 0:
         dx = 0.00000000000001
-    angle = math.atan((float(dy))/dx)
+    angle = math.atan((float(dy)) / dx)
 
 
 def draw_level_cleared():
@@ -219,38 +282,95 @@ def draw_level_cleared():
     global game_state
     global bonus_score_once
     global score
-    level_cleared = bold_font3.render("Level Cleared!", 1, WHITE)
-    score_level_cleared = bold_font2.render(str(score), 1, WHITE)
-    if level.number_of_birds >= 0 and len(pigs) == 0:
-        if bonus_score_once:
-            score += (level.number_of_birds-1) * 10000
+
+    # Guard clause to check if the level is actually cleared
+    if level.number_of_birds < 0 or len(pigs) != 0:
+        return
+
+    if bonus_score_once:
+        score += (level.number_of_birds - 1) * 10000
         bonus_score_once = False
-        game_state = 4
-        rect = pygame.Rect(300, 0, 600, 800)
-        pygame.draw.rect(screen, BLACK, rect)
-        screen.blit(level_cleared, (450, 90))
-        if score >= level.one_star:
-            screen.blit(star1, (310, 190))
-        if score >= level.two_star:
-            screen.blit(star2, (500, 170))
-        if score >= level.three_star:
-            screen.blit(star3, (700, 200))
-        screen.blit(score_level_cleared, (550, 400))
-        screen.blit(replay_button, (510, 480))
-        screen.blit(next_button, (620, 480))
+
+    screen_manager.change(4)
+    # Semi-transparent overlay
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    overlay.set_alpha(165)
+    overlay.fill(BLACK)
+    screen.blit(overlay, (0, 0))
+    # Styled panel
+    panel = pygame.Rect(300, 55, 600, 560)
+    pygame.draw.rect(screen, PANEL_BG, panel, border_radius=20)
+    pygame.draw.rect(screen, PANEL_BORDER, panel, 5, border_radius=20)
+    # Title with drop shadow
+    shadow = bold_font3.render("Level Cleared!", 1, (20, 10, 5))
+    title = bold_font3.render("Level Cleared!", 1, WHITE)
+    screen.blit(shadow, (432, 82))
+    screen.blit(title, (430, 80))
+    # Stars
+    if score >= level.one_star:
+        screen.blit(star1, (310, 190))
+    if score >= level.two_star:
+        screen.blit(star2, (500, 170))
+    if score >= level.three_star:
+        screen.blit(star3, (700, 200))
+    # Score display
+    score_shadow = bold_font2.render(str(score), 1, (20, 10, 5))
+    score_text = bold_font2.render(str(score), 1, WHITE)
+    screen.blit(score_shadow, (552, 402))
+    screen.blit(score_text, (550, 400))
+    # Styled replay button
+    rx, ry = 510, 475
+    hover_r = (rx <= x_mouse <= rx + 100 and ry <= y_mouse <= ry + 100)
+    rc = BUTTON_HOVER if hover_r else BUTTON_NORMAL
+    rr = pygame.Rect(rx - 10, ry - 10, 120, 120)
+    pygame.draw.rect(screen, rc, rr, border_radius=18)
+    pygame.draw.rect(screen, BUTTON_BORDER_COLOR, rr, 3, border_radius=18)
+    screen.blit(replay_button, (rx, ry))
+    lbl_r = label_font.render("REPLAY", 1, WHITE)
+    screen.blit(lbl_r, (rx + 10, ry + 103))
+    # Styled next button
+    nx, ny = 625, 475
+    hover_n = (nx <= x_mouse <= nx + 130 and ny <= y_mouse <= ny + 100)
+    nc = BUTTON_HOVER if hover_n else BUTTON_NORMAL
+    nr = pygame.Rect(nx - 10, ny - 10, 150, 120)
+    pygame.draw.rect(screen, nc, nr, border_radius=18)
+    pygame.draw.rect(screen, BUTTON_BORDER_COLOR, nr, 3, border_radius=18)
+    screen.blit(next_button, (nx, ny))
+    lbl_n = label_font.render("NEXT", 1, WHITE)
+    screen.blit(lbl_n, (nx + 40, ny + 103))
 
 
 def draw_level_failed():
     """Draw level failed"""
     global game_state
-    failed = bold_font3.render("Level Failed", 1, WHITE)
     if level.number_of_birds <= 0 and time.time() - t2 > 5 and len(pigs) > 0:
-        game_state = 3
-        rect = pygame.Rect(300, 0, 600, 800)
-        pygame.draw.rect(screen, BLACK, rect)
-        screen.blit(failed, (450, 90))
-        screen.blit(pig_happy, (380, 120))
-        screen.blit(replay_button, (520, 460))
+        screen_manager.change(3)
+        # Semi-transparent overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(165)
+        overlay.fill(BLACK)
+        screen.blit(overlay, (0, 0))
+        # Styled panel
+        panel = pygame.Rect(310, 65, 580, 525)
+        pygame.draw.rect(screen, PANEL_BG, panel, border_radius=20)
+        pygame.draw.rect(screen, PANEL_BORDER, panel, 5, border_radius=20)
+        # Title with drop shadow
+        shadow = bold_font3.render("Level Failed", 1, (20, 10, 5))
+        title = bold_font3.render("Level Failed", 1, WHITE)
+        screen.blit(shadow, (452, 92))
+        screen.blit(title, (450, 90))
+        # Pig image
+        screen.blit(pig_happy, (380, 145))
+        # Styled replay button
+        rx, ry = 550, 455
+        hover_r = (rx <= x_mouse <= rx + 100 and ry <= y_mouse <= ry + 100)
+        bc = BUTTON_HOVER if hover_r else BUTTON_NORMAL
+        br = pygame.Rect(rx - 10, ry - 10, 120, 120)
+        pygame.draw.rect(screen, bc, br, border_radius=18)
+        pygame.draw.rect(screen, BUTTON_BORDER_COLOR, br, 3, border_radius=18)
+        screen.blit(replay_button, (rx, ry))
+        lbl = label_font.render("REPLAY", 1, WHITE)
+        screen.blit(lbl, (rx + 10, ry + 103))
 
 
 def _remove_objects(objects_list, space):
@@ -285,6 +405,7 @@ def restart():
 
 def post_solve_bird_pig(arbiter, space, _):
     """Collision between bird and pig"""
+    global _last_collision_time
     surface=screen
     a, b = arbiter.shapes
     bird_body = a.body
@@ -304,6 +425,10 @@ def post_solve_bird_pig(arbiter, space, _):
     for pig in pigs_to_remove:
         space.remove(pig.shape, pig.shape.body)
         pigs.remove(pig)
+    now = time.time()
+    if collision_sound and now - _last_collision_time > 0.15:
+        collision_sound.play()
+        _last_collision_time = now
 
 
 def post_solve_bird_wood(arbiter, space, _):
@@ -351,6 +476,10 @@ space.add_collision_handler(BIRD_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve
 # pig and wood
 space.add_collision_handler(PIG_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_pig_wood
 load_music()
+try:
+    collision_sound = _generate_collision_sound()
+except Exception:
+    collision_sound = None
 level = Level(pigs, columns, beams, space)
 level.number = 0
 level.load_level()
@@ -379,16 +508,34 @@ while running:
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
             space.gravity = (0.0, -700.0)
             level.bool_space = False
-        clicked_on_slingshot = (
-            pygame.mouse.get_pressed()[0] and 
-            (100 < x_mouse < 250) and 
-            (370 < y_mouse < 550)
-        )
+            
+        # Technical Requirement (SM 14): Implement Mute functionality (Key 'M')
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+            music_muted = not music_muted
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if music_muted:
+                pygame.mixer.music.pause()
+            else:
+                pygame.mixer.music.unpause()
 
-        if clicked_on_slingshot:
-            mouse_pressed = True
-        if (event.type == pygame.MOUSEBUTTONUP and
-                event.button == 1 and mouse_pressed):
+        # Volume Up control (Advances to the next step in the custom volume list)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if current_volume_index < len(volume_steps) - 1:
+                current_volume_index += 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+
+        # Volume Down control (Goes back to the previous step in the custom volume list)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN:
+            volume_display_timer = pygame.time.get_ticks()  # Start/Reset timer
+            if current_volume_index > 0:
+                current_volume_index -= 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+
+        # Handle mouse release for the slingshot
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and mouse_pressed:
             # Release new bird
             mouse_pressed = False
             if level.number_of_birds > 0:
@@ -406,10 +553,11 @@ while running:
                     birds.append(bird)
                 if level.number_of_birds == 0:
                     t2 = time.time()
+
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             if (x_mouse < 60 and y_mouse < 155 and y_mouse > 90):
-                game_state = 1
-            if game_state == 1:
+                screen_manager.change(1)
+            if screen_manager.current() == 1:
                 if x_mouse > 500 and y_mouse > 200 and y_mouse < 300:
                     # Resume in the paused screen
                     game_state = 0
@@ -419,17 +567,17 @@ while running:
                     level.load_level()
                     game_state = 0
                     bird_path = []
-            if game_state == 3:
+            if screen_manager.current() == 3:
                 # Restart in the failed level screen
-                if x_mouse > 500 and x_mouse < 620 and y_mouse > 450:
+                if x_mouse > 540 and x_mouse < 660 and y_mouse > 445:
                     restart()
                     level.load_level()
                     game_state = 0
                     bird_path = []
                     score = 0
-            if game_state == 4:
+            if screen_manager.current() == 4:
                 # Build next level
-                if x_mouse > 610 and y_mouse > 450:
+                if x_mouse > 615 and y_mouse > 465:
                     restart()
                     level.number += 1
                     game_state = 0
@@ -437,14 +585,25 @@ while running:
                     score = 0
                     bird_path = []
                     bonus_score_once = True
-                if x_mouse < 610 and x_mouse > 500 and y_mouse > 450:
+                if x_mouse < 615 and x_mouse > 500 and y_mouse > 465:
                     # Restart in the level cleared screen
                     restart()
                     level.load_level()
                     game_state = 0
                     bird_path = []
                     score = 0
+
+    # Continuous input tracking (Runs every frame, outside the event loop)
     x_mouse, y_mouse = pygame.mouse.get_pos()
+    
+    clicked_on_slingshot = (
+        pygame.mouse.get_pressed()[0] and 
+        (100 < x_mouse < 250) and 
+        (370 < y_mouse < 550)
+    )
+    if clicked_on_slingshot:
+        mouse_pressed = True
+
     # Draw background
     screen.fill((130, 200, 100))
     screen.blit(background2, (0, -50))
@@ -507,7 +666,6 @@ while running:
     # Draw pigs
     for pig in pigs:
         i += 1
-        # print (i,pig.life)
         pig = pig.shape
         if pig.body.position.y < 0:
             pigs_to_remove.append(pig)
@@ -543,6 +701,15 @@ while running:
     else:
         screen.blit(number_font, (1060, 130))
     screen.blit(pause_button, (10, 90))
+    
+    # Render and display the current volume level only when altered (lasts 2 seconds)
+    current_time = pygame.time.get_ticks()
+    if current_time - volume_display_timer < 2000:  # 2000ms = 2 seconds
+        volume_percentage = 0 if music_muted else int(current_volume * 100)
+        volume_text = f"Volume: {volume_percentage}%"
+        volume_font = small_font.render(volume_text, 1, WHITE)
+        screen.blit(volume_font, (1070, 610))  # Displaced slightly for better fit
+
     # Pause option
     if game_state == 1:
         screen.blit(play_button, (500, 200))
@@ -552,3 +719,4 @@ while running:
     pygame.display.flip()
     clock.tick(50)
     pygame.display.set_caption("fps: " + str(clock.get_fps()))
+    pygame.display.set_caption("Angry Birds Python Edition")

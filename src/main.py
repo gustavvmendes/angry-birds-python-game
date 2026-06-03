@@ -1,33 +1,74 @@
 import os
-import sys
 import math
 import time
 import pygame
-current_path = os.getcwd()
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'images')
+SOUNDS_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'sounds')
 import pymunk as pm
 from characters import Bird
 from level import Level
 
+# ========== GAME CONSTANTS ==========
+# Window dimensions
+SCREEN_WIDTH = 1200
+SCREEN_HEIGHT = 650
+
+# Physics
+GRAVITY = (0.0, -700.0)
+BIRD_RADIUS = 12
+PIG_RADIUS = 14
+BIRD_COLLISION_TYPE = 0
+PIG_COLLISION_TYPE = 1
+WOOD_COLLISION_TYPE = 2
+
+# Sling configuration
+SLING_X = 135
+SLING_Y = 450
+SLING2_X = 160
+SLING2_Y = 450
+ROPE_LENGTH = 90
+BIGGER_ROPE = 102
+
+# Collision impulse thresholds
+BIRD_WOOD_IMPULSE_THRESHOLD = 1100
+PIG_WOOD_IMPULSE_THRESHOLD = 700
+
+# Image rendering offsets
+BIRD_RENDER_OFFSET = 20
+BIRD_SPRITE_OFFSET = 22
+PIG_SPRITE_OFFSET = 15
+
+# UI positions
+LEVEL_CLEARED_RECT = (300, 0, 600, 800)
+LEVEL_CLEARED_TEXT_POS = (450, 90)
+SCORE_DISPLAY_POS = (550, 400)
+
+# Colors
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
 
 pygame.init()
-screen = pygame.display.set_mode((1200, 650))
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 redbird = pygame.image.load(
-    "../resources/images/red-bird3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "red-bird3.png")).convert_alpha()
 background2 = pygame.image.load(
-    "../resources/images/background3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "background3.png")).convert_alpha()
 sling_image = pygame.image.load(
-    "../resources/images/sling-3.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "sling-3.png")).convert_alpha()
 full_sprite = pygame.image.load(
-    "../resources/images/full-sprite.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "full-sprite.png")).convert_alpha()
 rect = pygame.Rect(181, 1050, 50, 50)
 cropped = full_sprite.subsurface(rect).copy()
 pig_image = pygame.transform.scale(cropped, (30, 30))
 buttons = pygame.image.load(
-    "../resources/images/selected-buttons.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "selected-buttons.png")).convert_alpha()
 pig_happy = pygame.image.load(
-    "../resources/images/pig_failed.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "pig_failed.png")).convert_alpha()
 stars = pygame.image.load(
-    "../resources/images/stars-edited.png").convert_alpha()
+    os.path.join(IMAGES_DIR, "stars-edited.png")).convert_alpha()
 rect = pygame.Rect(0, 0, 200, 200)
 star1 = stars.subsurface(rect).copy()
 rect = pygame.Rect(204, 0, 200, 200)
@@ -40,14 +81,13 @@ rect = pygame.Rect(24, 4, 100, 100)
 replay_button = buttons.subsurface(rect).copy()
 rect = pygame.Rect(142, 365, 130, 100)
 next_button = buttons.subsurface(rect).copy()
-clock = pygame.time.Clock()
 rect = pygame.Rect(18, 212, 100, 100)
 play_button = buttons.subsurface(rect).copy()
 clock = pygame.time.Clock()
 running = True
 # the base of the physics
 space = pm.Space()
-space.gravity = (0.0, -700.0)
+space.gravity = GRAVITY
 pigs = []
 birds = []
 balls = []
@@ -58,7 +98,7 @@ poly_points = []
 ball_number = 0
 polys_dict = {}
 mouse_distance = 0
-rope_lenght = 90
+rope_lenght = ROPE_LENGTH
 angle = 0
 x_mouse = 0
 y_mouse = 0
@@ -66,12 +106,8 @@ count = 0
 mouse_pressed = False
 t1 = 0
 tick_to_next_circle = 10
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-sling_x, sling_y = 135, 450
-sling2_x, sling2_y = 160, 450
+sling_x, sling_y = SLING_X, SLING_Y
+sling2_x, sling2_y = SLING2_X, SLING2_Y
 score = 0
 game_state = 0
 bird_path = []
@@ -140,7 +176,7 @@ def distance(xo, yo, x, y):
 
 def load_music():
     """Load the music"""
-    song1 = '../resources/sounds/angry-birds.ogg'
+    song1 = os.path.join(SOUNDS_DIR, 'angry-birds.ogg')
     pygame.mixer.music.load(song1)
     pygame.mixer.music.set_volume(volume_steps[current_volume_index])  # Set initial volume from scale
     pygame.mixer.music.play(-1)
@@ -158,8 +194,8 @@ def sling_action():
     mouse_distance = distance(sling_x, sling_y, x_mouse, y_mouse)
     
     # Technical Requirement (SM 04): Implement maximum force limit constraint
-    if mouse_distance > rope_lenght:
-        mouse_distance = rope_lenght
+    if mouse_distance > ROPE_LENGTH:
+        mouse_distance = ROPE_LENGTH
 
     v = vector((sling_x, sling_y), (x_mouse, y_mouse))
     uv = unit_vector(v)
@@ -168,8 +204,8 @@ def sling_action():
     
     pu = (uv1 * mouse_distance + sling_x, uv2 * mouse_distance + sling_y)
     bigger_rope = mouse_distance + 12
-    x_redbird = pu[0] - 20
-    y_redbird = pu[1] - 20
+    x_redbird = pu[0] - BIRD_RENDER_OFFSET
+    y_redbird = pu[1] - BIRD_RENDER_OFFSET
     
     # Draw the sling ropes and bird based on the constrained distance
     pygame.draw.line(screen, (0, 0, 0), (sling2_x, sling2_y), pu, 5)
@@ -232,32 +268,34 @@ def draw_level_failed():
         screen.blit(replay_button, (520, 460))
 
 
+def _remove_objects(objects_list, space):
+    """Remove objects from physics space and from the list
+    
+    Extracted method to eliminate code duplication.
+    Used by restart() to remove pigs, birds, columns and beams.
+    
+    Args:
+        objects_list: The list of objects to remove
+        space: The pymunk physics space
+    """
+    objects_to_remove = []
+    
+    # Identify objects to remove
+    for obj in objects_list:
+        objects_to_remove.append(obj)
+    
+    # Remove from physics space and from the list
+    for obj in objects_to_remove:
+        space.remove(obj.shape, obj.shape.body)
+        objects_list.remove(obj)
+
+
 def restart():
     """Delete all objects of the level"""
-    pigs_to_remove = []
-    birds_to_remove = []
-    columns_to_remove = []
-    beams_to_remove = []
-    for pig in pigs:
-        pigs_to_remove.append(pig)
-    for pig in pigs_to_remove:
-        space.remove(pig.shape, pig.shape.body)
-        pigs.remove(pig)
-    for bird in birds:
-        birds_to_remove.append(bird)
-    for bird in birds_to_remove:
-        space.remove(bird.shape, bird.shape.body)
-        birds.remove(bird)
-    for column in columns:
-        columns_to_remove.append(column)
-    for column in columns_to_remove:
-        space.remove(column.shape, column.shape.body)
-        columns.remove(column)
-    for beam in beams:
-        beams_to_remove.append(beam)
-    for beam in beams_to_remove:
-        space.remove(beam.shape, beam.shape.body)
-        beams.remove(beam)
+    _remove_objects(pigs, space)
+    _remove_objects(birds, space)
+    _remove_objects(columns, space)
+    _remove_objects(beams, space)
 
 
 def post_solve_bird_pig(arbiter, space, _):
@@ -286,7 +324,7 @@ def post_solve_bird_pig(arbiter, space, _):
 def post_solve_bird_wood(arbiter, space, _):
     """Collision between bird and wood"""
     poly_to_remove = []
-    if arbiter.total_impulse.length > 1100:
+    if arbiter.total_impulse.length > BIRD_WOOD_IMPULSE_THRESHOLD:
         a, b = arbiter.shapes
         for column in columns:
             if b == column.shape:
@@ -307,7 +345,7 @@ def post_solve_bird_wood(arbiter, space, _):
 def post_solve_pig_wood(arbiter, space, _):
     """Collision between pig and wood"""
     pigs_to_remove = []
-    if arbiter.total_impulse.length > 700:
+    if arbiter.total_impulse.length > PIG_WOOD_IMPULSE_THRESHOLD:
         pig_shape, wood_shape = arbiter.shapes
         for pig in pigs:
             if pig_shape == pig.shape:
@@ -322,11 +360,11 @@ def post_solve_pig_wood(arbiter, space, _):
 
 
 # bird and pigs
-space.add_collision_handler(0, 1).post_solve=post_solve_bird_pig
+space.add_collision_handler(BIRD_COLLISION_TYPE, PIG_COLLISION_TYPE).post_solve = post_solve_bird_pig
 # bird and wood
-space.add_collision_handler(0, 2).post_solve=post_solve_bird_wood
+space.add_collision_handler(BIRD_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_bird_wood
 # pig and wood
-space.add_collision_handler(1, 2).post_solve=post_solve_pig_wood
+space.add_collision_handler(PIG_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_pig_wood
 load_music()
 level = Level(pigs, columns, beams, space)
 level.number = 0
@@ -484,8 +522,8 @@ while running:
             birds_to_remove.append(bird)
         p = to_pygame(bird.shape.body.position)
         x, y = p
-        x -= 22
-        y -= 20
+        x -= BIRD_SPRITE_OFFSET
+        y -= BIRD_RENDER_OFFSET
         screen.blit(redbird, (x, y))
         pygame.draw.circle(screen, BLUE,
                            p, int(bird.shape.radius), 2)

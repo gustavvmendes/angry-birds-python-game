@@ -6,6 +6,7 @@ import pygame
 import math
 
 _IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'resources', 'images')
+ORIENTATION_ADJUSTMENT = 180
 
 
 def _load_sprite(image_path: str, rect_coords: Tuple[int, int, int, int]) -> pygame.Surface:
@@ -37,7 +38,7 @@ class Polygon:
     def _render_sprite(self, image: pygame.Surface, poly: pm.Poly, screen: pygame.Surface) -> None:
         """Render a rotated sprite centered on the polygon body position"""
         p = Vec2d(*self.to_pygame(poly.body.position))
-        angle_degrees = math.degrees(poly.body.angle) + 180
+        angle_degrees = math.degrees(poly.body.angle) + ORIENTATION_ADJUSTMENT
         rotated_img = pygame.transform.rotate(image, angle_degrees)
         p = p - Vec2d(*rotated_img.get_size()) / 2.
         screen.blit(rotated_img, (p.x, p.y))

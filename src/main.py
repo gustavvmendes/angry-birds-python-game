@@ -161,11 +161,10 @@ def unit_vector(v):
 
 
 def distance(xo, yo, x, y):
-    """distance between points"""
-    dx = x - xo
-    dy = y - yo
-    d = ((dx ** 2) + (dy ** 2)) ** 0.5
-    return d
+    """Calculates distance between two points."""
+    origin_point = (xo, yo)
+    destination_point = (x, y)
+    return math.dist(origin_point, destination_point)
 
 
 def load_music():
@@ -380,8 +379,13 @@ while running:
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
             space.gravity = (0.0, -700.0)
             level.bool_space = False
-        if (pygame.mouse.get_pressed()[0] and x_mouse > 100 and
-                x_mouse < 250 and y_mouse > 370 and y_mouse < 550):
+        clicked_on_slingshot = (
+            pygame.mouse.get_pressed()[0] and 
+            (100 < x_mouse < 250) and 
+            (370 < y_mouse < 550)
+        )
+
+        if clicked_on_slingshot:
             mouse_pressed = True
         if (event.type == pygame.MOUSEBUTTONUP and
                 event.button == 1 and mouse_pressed):

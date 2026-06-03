@@ -6,6 +6,11 @@ _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'images')
 SOUNDS_DIR = os.path.join(_SRC_DIR, '..', 'resources', 'sounds')
 import pymunk as pm
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
 from characters import Bird
 from level import Level
 
@@ -49,7 +54,13 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+PANEL_BG = (35, 18, 8)
+PANEL_BORDER = (210, 165, 30)
+BUTTON_NORMAL = (170, 60, 20)
+BUTTON_HOVER = (210, 90, 35)
+BUTTON_BORDER_COLOR = (210, 165, 30)
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 redbird = pygame.image.load(
@@ -117,6 +128,7 @@ bonus_score_once = True
 bold_font = pygame.font.SysFont("arial", 30, bold=True)
 bold_font2 = pygame.font.SysFont("arial", 40, bold=True)
 bold_font3 = pygame.font.SysFont("arial", 50, bold=True)
+label_font = pygame.font.SysFont("arial", 22, bold=True)
 wall = False
 
 # Static floor
@@ -165,6 +177,49 @@ def distance(xo, yo, x, y):
     origin_point = (xo, yo)
     destination_point = (x, y)
     return math.dist(origin_point, destination_point)
+
+
+collision_sound = None
+_last_collision_time = 0.0
+
+
+def _generate_collision_sound():
+    """Generate a funny descending pig squeal for bird-pig collision."""
+    import array as _arr
+    sample_rate, _, channels = pygame.mixer.get_init()
+    sample_rate = abs(sample_rate) or 44100
+    channels = channels or 2
+    duration = 0.45
+    n = int(sample_rate * duration)
+
+    if _HAS_NUMPY:
+        t = np.linspace(0, duration, n, dtype=np.float64)
+        freq = 850.0 * np.exp(-7.0 * t) + 160.0
+        freq += np.sin(2 * np.pi * 22 * t) * 55.0
+        dt = duration / n
+        phase = 2 * np.pi * np.cumsum(freq) * dt
+        wave = np.sin(phase) + 0.45 * np.sin(2 * phase + 0.4)
+        env = np.exp(-6.0 * t)
+        wave *= env
+        peak = np.max(np.abs(wave)) or 1.0
+        wave = (wave / peak * 29000).astype(np.int16)
+        if channels == 2:
+            wave = np.ascontiguousarray(np.column_stack([wave, wave]))
+        return pygame.sndarray.make_sound(wave)
+    else:
+        buf = _arr.array('h')
+        phase = 0.0
+        for i in range(n):
+            t_i = i / sample_rate
+            f = 850 * math.exp(-7 * t_i) + 160 + math.sin(2 * math.pi * 22 * t_i) * 55
+            phase += 2 * math.pi * f / sample_rate
+            v = math.sin(phase) + 0.45 * math.sin(2 * phase + 0.4)
+            env = math.exp(-6 * t_i)
+            sample = max(-32767, min(32767, int(v * env * 20000)))
+            buf.append(sample)
+            if channels == 2:
+                buf.append(sample)
+        return pygame.mixer.Sound(buffer=buf)
 
 
 def load_music():
@@ -219,38 +274,90 @@ def draw_level_cleared():
     global game_state
     global bonus_score_once
     global score
-    level_cleared = bold_font3.render("Level Cleared!", 1, WHITE)
-    score_level_cleared = bold_font2.render(str(score), 1, WHITE)
     if level.number_of_birds >= 0 and len(pigs) == 0:
         if bonus_score_once:
             score += (level.number_of_birds-1) * 10000
         bonus_score_once = False
         game_state = 4
-        rect = pygame.Rect(300, 0, 600, 800)
-        pygame.draw.rect(screen, BLACK, rect)
-        screen.blit(level_cleared, (450, 90))
+        # Semi-transparent overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(165)
+        overlay.fill(BLACK)
+        screen.blit(overlay, (0, 0))
+        # Styled panel
+        panel = pygame.Rect(300, 55, 600, 560)
+        pygame.draw.rect(screen, PANEL_BG, panel, border_radius=20)
+        pygame.draw.rect(screen, PANEL_BORDER, panel, 5, border_radius=20)
+        # Title with drop shadow
+        shadow = bold_font3.render("Level Cleared!", 1, (20, 10, 5))
+        title = bold_font3.render("Level Cleared!", 1, WHITE)
+        screen.blit(shadow, (432, 82))
+        screen.blit(title, (430, 80))
+        # Stars
         if score >= level.one_star:
             screen.blit(star1, (310, 190))
         if score >= level.two_star:
             screen.blit(star2, (500, 170))
         if score >= level.three_star:
             screen.blit(star3, (700, 200))
-        screen.blit(score_level_cleared, (550, 400))
-        screen.blit(replay_button, (510, 480))
-        screen.blit(next_button, (620, 480))
+        # Score display
+        score_shadow = bold_font2.render(str(score), 1, (20, 10, 5))
+        score_text = bold_font2.render(str(score), 1, WHITE)
+        screen.blit(score_shadow, (552, 402))
+        screen.blit(score_text, (550, 400))
+        # Styled replay button
+        rx, ry = 510, 475
+        hover_r = (rx <= x_mouse <= rx + 100 and ry <= y_mouse <= ry + 100)
+        rc = BUTTON_HOVER if hover_r else BUTTON_NORMAL
+        rr = pygame.Rect(rx - 10, ry - 10, 120, 120)
+        pygame.draw.rect(screen, rc, rr, border_radius=18)
+        pygame.draw.rect(screen, BUTTON_BORDER_COLOR, rr, 3, border_radius=18)
+        screen.blit(replay_button, (rx, ry))
+        lbl_r = label_font.render("REPLAY", 1, WHITE)
+        screen.blit(lbl_r, (rx + 10, ry + 103))
+        # Styled next button
+        nx, ny = 625, 475
+        hover_n = (nx <= x_mouse <= nx + 130 and ny <= y_mouse <= ny + 100)
+        nc = BUTTON_HOVER if hover_n else BUTTON_NORMAL
+        nr = pygame.Rect(nx - 10, ny - 10, 150, 120)
+        pygame.draw.rect(screen, nc, nr, border_radius=18)
+        pygame.draw.rect(screen, BUTTON_BORDER_COLOR, nr, 3, border_radius=18)
+        screen.blit(next_button, (nx, ny))
+        lbl_n = label_font.render("NEXT", 1, WHITE)
+        screen.blit(lbl_n, (nx + 40, ny + 103))
 
 
 def draw_level_failed():
     """Draw level failed"""
     global game_state
-    failed = bold_font3.render("Level Failed", 1, WHITE)
     if level.number_of_birds <= 0 and time.time() - t2 > 5 and len(pigs) > 0:
         game_state = 3
-        rect = pygame.Rect(300, 0, 600, 800)
-        pygame.draw.rect(screen, BLACK, rect)
-        screen.blit(failed, (450, 90))
-        screen.blit(pig_happy, (380, 120))
-        screen.blit(replay_button, (520, 460))
+        # Semi-transparent overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(165)
+        overlay.fill(BLACK)
+        screen.blit(overlay, (0, 0))
+        # Styled panel
+        panel = pygame.Rect(310, 65, 580, 525)
+        pygame.draw.rect(screen, PANEL_BG, panel, border_radius=20)
+        pygame.draw.rect(screen, PANEL_BORDER, panel, 5, border_radius=20)
+        # Title with drop shadow
+        shadow = bold_font3.render("Level Failed", 1, (20, 10, 5))
+        title = bold_font3.render("Level Failed", 1, WHITE)
+        screen.blit(shadow, (452, 92))
+        screen.blit(title, (450, 90))
+        # Pig image
+        screen.blit(pig_happy, (380, 145))
+        # Styled replay button
+        rx, ry = 550, 455
+        hover_r = (rx <= x_mouse <= rx + 100 and ry <= y_mouse <= ry + 100)
+        bc = BUTTON_HOVER if hover_r else BUTTON_NORMAL
+        br = pygame.Rect(rx - 10, ry - 10, 120, 120)
+        pygame.draw.rect(screen, bc, br, border_radius=18)
+        pygame.draw.rect(screen, BUTTON_BORDER_COLOR, br, 3, border_radius=18)
+        screen.blit(replay_button, (rx, ry))
+        lbl = label_font.render("REPLAY", 1, WHITE)
+        screen.blit(lbl, (rx + 10, ry + 103))
 
 
 def _remove_objects(objects_list, space):
@@ -285,6 +392,7 @@ def restart():
 
 def post_solve_bird_pig(arbiter, space, _):
     """Collision between bird and pig"""
+    global _last_collision_time
     surface=screen
     a, b = arbiter.shapes
     bird_body = a.body
@@ -304,6 +412,10 @@ def post_solve_bird_pig(arbiter, space, _):
     for pig in pigs_to_remove:
         space.remove(pig.shape, pig.shape.body)
         pigs.remove(pig)
+    now = time.time()
+    if collision_sound and now - _last_collision_time > 0.15:
+        collision_sound.play()
+        _last_collision_time = now
 
 
 def post_solve_bird_wood(arbiter, space, _):
@@ -351,6 +463,10 @@ space.add_collision_handler(BIRD_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve
 # pig and wood
 space.add_collision_handler(PIG_COLLISION_TYPE, WOOD_COLLISION_TYPE).post_solve = post_solve_pig_wood
 load_music()
+try:
+    collision_sound = _generate_collision_sound()
+except Exception:
+    collision_sound = None
 level = Level(pigs, columns, beams, space)
 level.number = 0
 level.load_level()
@@ -421,7 +537,7 @@ while running:
                     bird_path = []
             if game_state == 3:
                 # Restart in the failed level screen
-                if x_mouse > 500 and x_mouse < 620 and y_mouse > 450:
+                if x_mouse > 540 and x_mouse < 660 and y_mouse > 445:
                     restart()
                     level.load_level()
                     game_state = 0
@@ -429,7 +545,7 @@ while running:
                     score = 0
             if game_state == 4:
                 # Build next level
-                if x_mouse > 610 and y_mouse > 450:
+                if x_mouse > 615 and y_mouse > 465:
                     restart()
                     level.number += 1
                     game_state = 0
@@ -437,7 +553,7 @@ while running:
                     score = 0
                     bird_path = []
                     bonus_score_once = True
-                if x_mouse < 610 and x_mouse > 500 and y_mouse > 450:
+                if x_mouse < 615 and x_mouse > 500 and y_mouse > 465:
                     # Restart in the level cleared screen
                     restart()
                     level.load_level()

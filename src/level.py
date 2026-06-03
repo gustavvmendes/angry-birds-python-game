@@ -62,7 +62,9 @@ class Level():
     def build_0(self):
         """level 0"""
         pig1 = Pig(980, 100, self.space)
+        pig1.life = 5
         pig2 = Pig(985, 182, self.space)
+        pig2.life = 5
         self.pigs.append(pig1)
         self.pigs.append(pig2)
         p = (950, 80)

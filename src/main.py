@@ -123,6 +123,7 @@ sling_x, sling_y = SLING_X, SLING_Y
 sling2_x, sling2_y = SLING2_X, SLING2_Y
 score = 0
 game_state = 0
+screen_manager = ScreenManager()
 bird_path = []
 counter = 0
 restart_counter = False

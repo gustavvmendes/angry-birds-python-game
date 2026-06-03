@@ -2,7 +2,7 @@ from typing import Tuple
 import pymunk as pm
 from pymunk import Vec2d, Body, Circle, Space
 
-BIRD_POWER_MULTIPLIER = 53
+BIRD_POWER_MULTIPLIER  = 53
 BIRD_COLLISION_TYPE = 0
 PIG_COLLISION_TYPE = 1
 SHAPE_ELASTICITY = 0.95

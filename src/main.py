@@ -15,6 +15,7 @@ from characters import Bird
 from level import Level
 
 from screen_manager import ScreenManager
+screen_manager = ScreenManager()
 
 # ========== GAME CONSTANTS ==========
 # Window dimensions
@@ -278,67 +279,81 @@ def sling_action():
     angle = math.atan((float(dy)) / dx)
 
 
-def draw_level_cleared():
-    """Draw level cleared"""
-    global game_state
-    global bonus_score_once
-    global score
-
-    # Guard clause to check if the level is actually cleared
-    if level.number_of_birds < 0 or len(pigs) != 0:
-        return
-
+def calculate_level_bonus():
+    """Calculates and updates the bonus score once."""
+    global bonus_score_once, score
     if bonus_score_once:
         score += (level.number_of_birds - 1) * 10000
         bonus_score_once = False
 
-    screen_manager.change(4)
+def draw_ui_panel():
+    """Draws the semi-transparent overlay and the central panel container."""
     # Semi-transparent overlay
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
     overlay.set_alpha(165)
     overlay.fill(BLACK)
     screen.blit(overlay, (0, 0))
+    
     # Styled panel
     panel = pygame.Rect(300, 55, 600, 560)
     pygame.draw.rect(screen, PANEL_BG, panel, border_radius=20)
     pygame.draw.rect(screen, PANEL_BORDER, panel, 5, border_radius=20)
-    # Title with drop shadow
-    shadow = bold_font3.render("Level Cleared!", 1, (20, 10, 5))
-    title = bold_font3.render("Level Cleared!", 1, WHITE)
-    screen.blit(shadow, (432, 82))
-    screen.blit(title, (430, 80))
-    # Stars
+
+def draw_stars():
+    """Renders stars based on the achieved score."""
     if score >= level.one_star:
         screen.blit(star1, (310, 190))
     if score >= level.two_star:
         screen.blit(star2, (500, 170))
     if score >= level.three_star:
         screen.blit(star3, (700, 200))
+
+def draw_score_text():
+    """Renders the text elements for titles and scores with shadows."""
+    # Title with drop shadow
+    shadow = bold_font3.render("Level Cleared!", 1, (20, 10, 5))
+    title = bold_font3.render("Level Cleared!", 1, WHITE)
+    screen.blit(shadow, (432, 82))
+    screen.blit(title, (430, 80))
+    
     # Score display
     score_shadow = bold_font2.render(str(score), 1, (20, 10, 5))
     score_text = bold_font2.render(str(score), 1, WHITE)
     screen.blit(score_shadow, (552, 402))
     screen.blit(score_text, (550, 400))
-    # Styled replay button
-    rx, ry = 510, 475
-    hover_r = (rx <= x_mouse <= rx + 100 and ry <= y_mouse <= ry + 100)
-    rc = BUTTON_HOVER if hover_r else BUTTON_NORMAL
-    rr = pygame.Rect(rx - 10, ry - 10, 120, 120)
-    pygame.draw.rect(screen, rc, rr, border_radius=18)
+
+def draw_interactive_button(bx, by, b_width, b_height, hover_condition, button_img, label_str, text_offset_x):
+    """Generic helper to draw styled interactive menu buttons with hover effects."""
+    bc = BUTTON_HOVER if hover_condition else BUTTON_NORMAL
+    rr = pygame.Rect(bx - 10, by - 10, b_width, b_height)
+    pygame.draw.rect(screen, bc, rr, border_radius=18)
     pygame.draw.rect(screen, BUTTON_BORDER_COLOR, rr, 3, border_radius=18)
-    screen.blit(replay_button, (rx, ry))
-    lbl_r = label_font.render("REPLAY", 1, WHITE)
-    screen.blit(lbl_r, (rx + 10, ry + 103))
-    # Styled next button
-    nx, ny = 625, 475
-    hover_n = (nx <= x_mouse <= nx + 130 and ny <= y_mouse <= ny + 100)
-    nc = BUTTON_HOVER if hover_n else BUTTON_NORMAL
-    nr = pygame.Rect(nx - 10, ny - 10, 150, 120)
-    pygame.draw.rect(screen, nc, nr, border_radius=18)
-    pygame.draw.rect(screen, BUTTON_BORDER_COLOR, nr, 3, border_radius=18)
-    screen.blit(next_button, (nx, ny))
-    lbl_n = label_font.render("NEXT", 1, WHITE)
-    screen.blit(lbl_n, (nx + 40, ny + 103))
+    screen.blit(button_img, (bx, by))
+    lbl = label_font.render(label_str, 1, WHITE)
+    screen.blit(lbl, (bx + text_offset_x, by + 103))
+
+def draw_level_cleared():
+    """Draw level cleared (Refactored to reduce cyclomatic complexity)"""
+    global game_state
+
+    # Guard clause to check if the level is actually cleared
+    if level.number_of_birds < 0 or len(pigs) != 0:
+        return
+
+    calculate_level_bonus()
+    screen_manager.change(4)
+    
+    # Render interface components
+    draw_ui_panel()
+    draw_stars()
+    draw_score_text()
+    
+    # Draw interactive buttons
+    hover_r = (510 <= x_mouse <= 610 and 475 <= y_mouse <= 575)
+    draw_interactive_button(510, 475, 120, 120, hover_r, replay_button, "REPLAY", 10)
+    
+    hover_n = (625 <= x_mouse <= 755 and 475 <= y_mouse <= 575)
+    draw_interactive_button(625, 475, 150, 120, hover_n, next_button, "NEXT", 40)
 
 
 def draw_level_failed():
@@ -535,7 +550,7 @@ while running:
                 current_volume = volume_steps[current_volume_index]
                 pygame.mixer.music.set_volume(current_volume)
 
-        # Handle mouse release for the slingshot
+       # Handle mouse release for the slingshot
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and mouse_pressed:
             # Release new bird
             mouse_pressed = False
@@ -544,8 +559,14 @@ while running:
                 t1 = time.time()*1000
                 xo = 154
                 yo = 156
-                if mouse_distance > rope_lenght:
-                    mouse_distance = rope_lenght
+                
+                # Trava de Segurança (SM 04): Garante o limite máximo de força no instante do disparo
+                current_dist = distance(sling_x, sling_y, x_mouse, y_mouse)
+                if current_dist > ROPE_LENGTH:
+                    mouse_distance = ROPE_LENGTH
+                else:
+                    mouse_distance = current_dist
+
                 if x_mouse < sling_x+5:
                     bird = Bird(mouse_distance, angle, xo, yo, space)
                     birds.append(bird)

@@ -19,6 +19,14 @@ class Level():
         self.three_star = 60000
         self.bool_space = False
 
+    def finalize_level_setup(self):
+        """Define o número de pássaros padrão e as estrelas para todos os níveis."""
+        self.number_of_birds = SPACE_BIRD_COUNT if self.bool_space else NORMAL_BIRD_COUNT
+        # Configurações padrão de estrelas
+        self.one_star = 30000
+        self.two_star = 40000
+        self.three_star = 60000
+
     def open_flat(self, x, y, n):
         """Create a open flat struture"""
         y0 = y
@@ -79,9 +87,7 @@ class Level():
         self.columns.append(Polygon(p, 20, 85, self.space))
         p = (980, 240)
         self.beams.append(Polygon(p, 85, 20, self.space))
-        self.one_star = 30000
-        self.two_star = 40000
-        self.three_star = 60000
+        self.finalize_level_setup()
 
     def build_1(self):
         """level 1"""
@@ -97,6 +103,7 @@ class Level():
         self.columns.append(Polygon(p, 20, 85, self.space))
         p = (1105, 210)
         self.beams.append(Polygon(p, 85, 20, self.space))
+        self.finalize_level_setup()
 
     def build_2(self):
         """level 2"""
@@ -114,6 +121,7 @@ class Level():
         self.columns.append(Polygon(p, 20, 85, self.space))
         p = (1000, 210)
         self.beams.append(Polygon(p, 85, 20, self.space))
+        self.finalize_level_setup()
 
     def build_3(self):
         """level 3"""
@@ -168,6 +176,7 @@ class Level():
         self.columns.append(Polygon(p, 20, 85, self.space))
         p = (950, 400)
         self.beams.append(Polygon(p, 85, 20, self.space))
+        self.finalize_level_setup()
 
     def build_4(self):
         """level 4"""
@@ -177,6 +186,7 @@ class Level():
         self.pigs.append(pig)
         pig = Pig(1100, 400, self.space)
         self.pigs.append(pig)
+        self.finalize_level_setup()
 
     def build_5(self):
         """level 5"""
@@ -196,6 +206,7 @@ class Level():
         self.columns.append(Polygon(p, 20, 85, self.space))
         p = (1000, 230)
         self.beams.append(Polygon(p, 85, 20, self.space))
+        self.finalize_level_setup()
 
     def build_6(self):
         """level 6"""
@@ -210,6 +221,7 @@ class Level():
         self.vertical_pile(900, 0, 5)
         self.vertical_pile(926, 0, 5)
         self.vertical_pile(950, 0, 5)
+        self.finalize_level_setup()
 
     def build_7(self):
         """level 7"""
@@ -225,6 +237,7 @@ class Level():
         self.open_flat(950, 0, 3)
         self.vertical_pile(850, 0, 3)
         self.vertical_pile(830, 0, 3)
+        self.finalize_level_setup()
 
     def build_8(self):
         """level 8"""
@@ -240,6 +253,7 @@ class Level():
         self.open_flat(1050, 0, 3)
         self.open_flat(963, 0, 2)
         self.open_flat(880, 0, 1)
+        self.finalize_level_setup()
 
     def build_9(self):
         """level 9"""
@@ -253,6 +267,7 @@ class Level():
         self.open_flat(963, 0, 2)
         self.open_flat(880, 0, 2)
         self.open_flat(790, 0, 3)
+        self.finalize_level_setup()
 
     def build_10(self):
         """level 10"""
@@ -260,8 +275,10 @@ class Level():
         pig.life = 20
         self.pigs.append(pig)
         pig = Pig(820, 160, self.space)
+        pig.life = 20
         self.pigs.append(pig)
         pig = Pig(1100, 160, self.space)
+        pig.life = 20
         self.pigs.append(pig)
         self.vertical_pile(900, 0, 3)
         self.vertical_pile(930, 0, 3)
@@ -270,6 +287,7 @@ class Level():
         self.horizontal_pile(970, 250, 2)
         self.horizontal_pile(820, 0, 4)
         self.horizontal_pile(1100, 0, 4)
+        self.finalize_level_setup()
 
     def build_11(self):
         """level 11"""
@@ -291,6 +309,7 @@ class Level():
         self.vertical_pile(1000, 0, 2)
         p = (875, 230)
         self.beams.append(Polygon(p, 85, 20, self.space))
+        self.finalize_level_setup()
 
     def load_level(self):
         try:
@@ -300,4 +319,3 @@ class Level():
             self.number = 0
             build_name = "build_"+str(self.number)
             getattr(self, build_name)()
-        self.number_of_birds = SPACE_BIRD_COUNT if self.bool_space else NORMAL_BIRD_COUNT

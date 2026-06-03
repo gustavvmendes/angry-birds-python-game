@@ -2,17 +2,20 @@ from typing import Tuple
 import pymunk as pm
 from pymunk import Vec2d, Body, Circle, Space
 
-BIRD_POWER_MULTIPLIER  = 53
+BIRD_POWER_MULTIPLIER = 130
 BIRD_COLLISION_TYPE = 0
 PIG_COLLISION_TYPE = 1
-SHAPE_ELASTICITY = 0.95
-SHAPE_FRICTION = 1.0
+# Reduzindo drasticamente a elasticidade para evitar quiques excessivos
+SHAPE_ELASTICITY = 0.0
+SHAPE_FRICTION = 100.0
 
 
 class Bird:
     def __init__(self, distance: float, angle: float, x: float, y: float, space: Space) -> None:
         self.life: int = 20
-        mass: float = 5
+
+        mass: float = 10
+        
         radius: float = 12
         inertia: float = pm.moment_for_circle(mass, 0, radius, (0, 0))
         body: Body = pm.Body(mass, inertia)

@@ -1,0 +1,9 @@
+cffi>1.14.0
+
+[dev]
+pyglet
+pygame
+sphinx
+aafigure
+wheel
+matplotlib

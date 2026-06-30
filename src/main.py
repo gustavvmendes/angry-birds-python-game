@@ -182,9 +182,9 @@ def post_solve_pig_wood(arbiter, space, _):
                     space.remove(pig.shape, pig.shape.body); pigs.remove(pig)
                     global score; score += 10000
 
-space.add_collision_handler(0, 1).post_solve = post_solve_bird_pig
-space.add_collision_handler(0, 2).post_solve = post_solve_bird_wood
-space.add_collision_handler(1, 2).post_solve = post_solve_pig_wood
+space.on_collision(collision_type_a=0, collision_type_b=1, post_solve=post_solve_bird_pig)
+space.on_collision(collision_type_a=0, collision_type_b=2, post_solve=post_solve_bird_wood)
+space.on_collision(collision_type_a=1, collision_type_b=2, post_solve=post_solve_pig_wood)
 
 load_music()
 level = Level(pigs, columns, beams, space)

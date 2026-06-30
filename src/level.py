@@ -311,6 +311,27 @@ class Level():
         self.beams.append(Polygon(p, 85, 20, self.space))
         self.finalize_level_setup()
 
+    def build_12(self):
+        """level 13 - three huts, reinforced center tower (verified stable)"""
+        # porcos nas cabanas laterais (no chão)
+        pig = Pig(830, 80, self.space)
+        self.pigs.append(pig)
+        pig = Pig(1150, 80, self.space)
+        self.pigs.append(pig)
+        # porco no térreo da torre central
+        pig = Pig(990, 80, self.space)
+        self.pigs.append(pig)
+        # porco reforçado no topo da torre central (o "chefe")
+        pig = Pig(990, 180, self.space)
+        pig.life = 40
+        self.pigs.append(pig)
+
+        # três cabanas: laterais de 1 andar, central de 2 andares
+        self.open_flat(800, 0, 1)    # cabana esquerda
+        self.open_flat(960, 0, 2)    # torre central (2 andares)
+        self.open_flat(1120, 0, 1)   # cabana direita
+        self.finalize_level_setup()
+
     def load_level(self):
         try:
             build_name = "build_"+str(self.number)

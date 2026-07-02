@@ -311,6 +311,22 @@ class Level():
         self.beams.append(Polygon(p, 85, 20, self.space))
         self.finalize_level_setup()
 
+    def build_12(self):
+        pig = Pig(830, 80, self.space)
+        self.pigs.append(pig)
+        pig = Pig(1150, 80, self.space)
+        self.pigs.append(pig)
+        pig = Pig(990, 80, self.space)
+        self.pigs.append(pig)
+        pig = Pig(990, 180, self.space)
+        pig.life = 40
+        self.pigs.append(pig)
+
+        self.open_flat(800, 0, 1)
+        self.open_flat(960, 0, 2)
+        self.open_flat(1120, 0, 1)
+        self.finalize_level_setup()
+
     def load_level(self):
         try:
             build_name = "build_"+str(self.number)

@@ -7,7 +7,6 @@ import pygame
 # MODULARIZAÇÃO: Importando utilitários e configurações
 from utils import GameConfig, to_pygame, vector, unit_vector, distance
 
-# Truque para Python 3.13 (redundante mas seguro)
 try:
     import imp
 except ImportError:
@@ -66,14 +65,24 @@ bold_font = pygame.font.SysFont("arial", 30, bold=True)
 bold_font2 = pygame.font.SysFont("arial", 40, bold=True)
 bold_font3 = pygame.font.SysFont("arial", 50, bold=True)
 label_font = pygame.font.SysFont("arial", 22, bold=True)
+small_font = pygame.font.SysFont("arial", 20, bold=True)
+music_muted = False
+volume_steps = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]
+current_volume_index = 7
+current_volume = volume_steps[current_volume_index]
+volume_display_timer = 0
 
 # Static floor
 static_body = pm.Body(body_type=pm.Body.STATIC)
 static_lines = [pm.Segment(static_body, (0.0, 060.0), (1200.0, 060.0), 0.0)]
+static_lines1 = [pm.Segment(static_body, (1200.0, 060.0), (1200.0, 800.0), 0.0)]
 for line in static_lines:
-
     line.elasticity = 0.0
     line.friction = 10.0
+    line.collision_type = 3
+for line in static_lines1:
+    line.elasticity = 0.95
+    line.friction = 1
     line.collision_type = 3
 space.add(static_body)
 for line in static_lines:
@@ -82,7 +91,7 @@ for line in static_lines:
 def load_music():
     song1 = os.path.join(SOUNDS_DIR, 'angry-birds.ogg')
     pygame.mixer.music.load(song1)
-    pygame.mixer.music.set_volume(0.5)
+    pygame.mixer.music.set_volume(volume_steps[current_volume_index])
     pygame.mixer.music.play(-1)
 
 def is_mouse_on_slingshot(x, y):
@@ -194,6 +203,39 @@ while running:
     x_mouse, y_mouse = pygame.mouse.get_pos()
     for event in pygame.event.get():
         if event.type == pygame.QUIT: running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_w:
+            if wall:
+                for line in static_lines1: space.remove(line)
+                wall = False
+            else:
+                for line in static_lines1: space.add(line)
+                wall = True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_s:
+            space.gravity = (0.0, -10.0)
+            level.bool_space = True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
+            space.gravity = GameConfig.GRAVITY
+            level.bool_space = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+            music_muted = not music_muted
+            volume_display_timer = pygame.time.get_ticks()
+            if music_muted: pygame.mixer.music.pause()
+            else: pygame.mixer.music.unpause()
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
+            volume_display_timer = pygame.time.get_ticks()
+            if current_volume_index < len(volume_steps) - 1:
+                current_volume_index += 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN:
+            volume_display_timer = pygame.time.get_ticks()
+            if current_volume_index > 0:
+                current_volume_index -= 1
+                current_volume = volume_steps[current_volume_index]
+                pygame.mixer.music.set_volume(current_volume)
+
         if pygame.mouse.get_pressed()[0] and is_mouse_on_slingshot(*pygame.mouse.get_pos()):
             mouse_pressed = True
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and mouse_pressed:
@@ -206,19 +248,31 @@ while running:
                 if level.number_of_birds == 0: t2 = time.time()
         
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            if screen_manager.state == 1: # Pausado
-                if 500 < x_mouse < 600 and 200 < y_mouse < 300: game_state = 0
-                if 500 < x_mouse < 600 and 300 < y_mouse < 400: restart(); level.load_level(); game_state = 0; bird_path = []
+            if screen_manager.state == 0: 
+                if (x_mouse < 60 and 90 < y_mouse < 155):
+                    game_state = 1
+                    screen_manager.change(1)
+
+            elif screen_manager.state == 1: 
+                if 500 < x_mouse < 600 and 200 < y_mouse < 300: 
+                    game_state = 0
+                    screen_manager.change(0)
+                if 500 < x_mouse < 600 and 300 < y_mouse < 400: 
+                    restart(); level.load_level(); game_state = 0; bird_path = []
+                    screen_manager.change(0)
             
-            if screen_manager.state == 3: # Falha (Retry)
+            elif screen_manager.state == 3: 
                 if 550 < x_mouse < 670 and 455 < y_mouse < 575:
-                    restart(); level.load_level(); game_state = 0; bird_path = []; score = 0; screen_manager.change(0)
+                    restart(); level.load_level(); game_state = 0; bird_path = []; score = 0
+                    screen_manager.change(0)
             
-            if screen_manager.state == 4: # Sucesso (Next/Replay)
-                if 625 < x_mouse < 755 and 475 < y_mouse < 575: # Next
-                    restart(); level.number += 1; game_state = 0; level.load_level(); score = 0; bird_path = []; bonus_score_once = True; screen_manager.change(0)
-                elif 510 < x_mouse < 610 and 475 < y_mouse < 575: # Replay
-                    restart(); level.load_level(); game_state = 0; bird_path = []; score = 0; screen_manager.change(0)
+            elif screen_manager.state == 4: 
+                if 625 < x_mouse < 755 and 475 < y_mouse < 575:
+                    restart(); level.number += 1; game_state = 0; level.load_level(); score = 0; bird_path = []; bonus_score_once = True
+                    screen_manager.change(0)
+                elif 510 < x_mouse < 610 and 475 < y_mouse < 575:
+                    restart(); level.load_level(); game_state = 0; bird_path = []; score = 0
+                    screen_manager.change(0)
 
     screen.fill((130, 200, 100)); screen.blit(background2, (0, -50))
     screen.blit(sling_image, (138, 420), pygame.Rect(50, 0, 70, 220))
@@ -240,10 +294,6 @@ while running:
         screen.blit(redbird, (p[0]-22, p[1]-20))
         if counter >= 3 and bird.shape.body.velocity.length > 20: bird_path.append(p); counter = 0
     
-    for line in static_lines:
-        p1, p2 = to_pygame(line.body.position + line.a), to_pygame(line.body.position + line.b)
-        pygame.draw.line(screen, (150, 150, 150), p1, p2, 2)
-    
     for pig in pigs:
         p = to_pygame(pig.shape.body.position)
         screen.blit(pig_image, (p[0]-22, p[1]-20))
@@ -251,7 +301,7 @@ while running:
     for obj in columns: obj.draw_poly('columns', screen)
     for obj in beams: obj.draw_poly('beams', screen)
 
-    screen.blit(bold_font.render("SCORE: " + str(score), 1, GameConfig.WHITE), (1000, 90))
+    screen.blit(bold_font.render("SCORE: " + str(score), 1, GameConfig.WHITE), (950, 90))
     screen.blit(pause_button, (10, 90))
     
     if game_state == 1:
@@ -259,5 +309,14 @@ while running:
         screen.blit(bold_font3.render("PAUSED", 1, GameConfig.WHITE), (500, 90))
         screen.blit(play_button, (500, 200)); screen.blit(replay_button, (500, 300))
     
-    for _ in range(2): space.step(1.0/100.0)
+    screen.blit(sling_image, (120, 420), pygame.Rect(0, 0, 60, 200))
+
+    current_time = pygame.time.get_ticks()
+    if current_time - volume_display_timer < 2000:
+        vol_pct = 0 if music_muted else int(current_volume * 100)
+        vol_text = small_font.render(f"Volume: {vol_pct}%", 1, GameConfig.WHITE)
+        screen.blit(vol_text, (1070, 610))
+
+    if game_state == 0:
+        for _ in range(2): space.step(1.0/100.0)
     pygame.display.flip(); clock.tick(50)
